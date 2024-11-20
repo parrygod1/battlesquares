@@ -74,7 +74,7 @@ const strategy = {
             const { x: enemyX, y: enemyY } = enemy.location;
 
             console.log(`Checking enemy at [${enemyX}, ${enemyY}]`);
-
+if(enemy.alive){
             // Shooting logic
             if (playerX === enemyX && enemyY > playerY) {
                 console.log("Enemy directly to the right. Shooting right.");
@@ -89,7 +89,7 @@ const strategy = {
                 console.log("Enemy directly below. Shooting down.");
                 return fireActions.left;
             }
-        }
+        }}
 
         // Filter valid moves to ensure they stay within bounds
         const validMoves = Object.entries(moveActions).filter(([direction, move]) => {
