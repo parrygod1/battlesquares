@@ -52,19 +52,15 @@ const BattleSquaresAPI = {
 
     performAction: async (gameId, playerId, secret, action) => {
         try {
-            if (!action) {
-                console.log("No action decided for this turn. Skipping...");
-                return;
-            }
             const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`, {
                 headers: {
                     secret: secret
                 }
             });
+            console.log(`Action "${action}" performed successfully.`);
             return response.data;
         } catch (error) {
             console.error(`Error performing action "${action}" for player ${playerId} in game ${gameId}:`, error.message);
-            throw error;
         }
     }
 };
@@ -76,28 +72,10 @@ const strategy = {
             throw new Error("Player not found in game info.");
         }
 
-        // If energy is low, avoid firing and move to a safer location
-        if (player.energy <= 2) {
-            return strategy.safeMove(gameInfo, player);
-        }
-
-        // If energy is sufficient, decide whether to fire or move
-        const targets = strategy.getPotentialTargets(gameInfo, player);
-        if (targets.length > 0) {
-            // Fire in the direction of the most targets
-            return strategy.fireAtTargets(targets);
-        }
-
-        // If no firing opportunities, move to a better location
-        return strategy.safeMove(gameInfo, player);
-    },
-
-    getPotentialTargets: (gameInfo, player) => {
-        const targets = [];
         const { x, y } = player.location;
 
-        // Check each direction for potential targets
-        ["up", "down", "left", "right"].forEach(direction => {
+        // Check for opponents in the line of fire
+        for (const direction of ["up", "down", "left", "right"]) {
             let dx = 0, dy = 0;
             if (direction === "up") dy = -1;
             if (direction === "down") dy = 1;
@@ -108,64 +86,53 @@ const strategy = {
             while (nx >= 0 && ny >= 0 && nx < gameInfo.gridSize && ny < gameInfo.gridSize) {
                 const target = gameInfo.players.find(p => p.location.x === nx && p.location.y === ny);
                 if (target) {
-                    targets.push({ direction, target });
+                    console.log(`Opponent found in line of fire: ${direction}`);
+                    return fireActions[direction];
                 }
                 nx += dx;
                 ny += dy;
             }
-        });
-
-        return targets;
-    },
-
-    fireAtTargets: (targets) => {
-        const directions = targets.map(t => t.direction);
-        // Prioritize firing in the direction with the most targets
-        const direction = directions[0]; // Simple strategy, can be improved
-        return fireActions[direction];
-    },
-
-    safeMove: (gameInfo, player) => {
-        const moves = ["up", "down", "left", "right"];
-        const safeMoves = moves.filter(move => {
-            const { x, y } = player.location;
-            let nx = x, ny = y;
-
-            if (move === "up") ny -= 1;
-            if (move === "down") ny += 1;
-            if (move === "left") nx -= 1;
-            if (move === "right") nx += 1;
-
-            return nx >= 0 && ny >= 0 && nx < gameInfo.gridSize && ny < gameInfo.gridSize &&
-                !gameInfo.players.find(p => p.location.x === nx && p.location.y === ny);
-        });
-
-        if (safeMoves.length > 0) {
-            return moveActions[safeMoves[0]];
         }
 
-        // If no safe moves, take no action
-        return null;
+        // If no opponents in the line of fire, move randomly
+        const possibleActions = [...Object.values(moveActions), ...Object.values(fireActions)];
+        const randomAction = possibleActions[Math.floor(Math.random() * possibleActions.length)];
+        console.log(`No targets in line of fire. Acting randomly: ${randomAction}`);
+        return randomAction;
     }
 };
 
 (async () => {
     try {
-        const gameId = 126;
+        const gameId = 189; // Replace with your actual game ID
 
+        // Connect to the game
         const connectResponse = await BattleSquaresAPI.connect(gameId);
         console.log("Connected to game:", connectResponse);
 
         const { playerId, secret } = connectResponse;
 
+        let gameState;
         while (true) {
             const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
-            const action = strategy.decideAction(gameInfo, playerId);
-            console.log(`Decided action: ${action || "No action this turn"}`);
+            gameState = gameInfo.state;
 
+            if (gameState !== allowedGameStateForMovement) {
+                console.log(`Game state is "${gameState}". Waiting for "${allowedGameStateForMovement}"...`);
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before checking again
+                continue;
+            }
+
+            // Decide the action based on the current state
+            const action = strategy.decideAction(gameInfo, playerId);
+            console.log(`Decided action: ${action}`);
+
+            // Perform the action
             await BattleSquaresAPI.performAction(gameId, playerId, secret, action);
         }
     } catch (error) {
         console.error("Error in game logic:", error.message);
     }
 })();
+
+module.exports = BattleSquaresAPI;
