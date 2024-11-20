@@ -81,6 +81,15 @@ const BattleSquaresAPI = {
     }
 };
 
+/* WaitingForPlayers, // game has just been created 
+    Ready, // all players are connected
+    Energise, // energy is being adjusted
+    InfoAndPlanning, // players get status and submit actions
+    Execution, // execute the actions
+    Status, // are players alive
+    Draw, // game is drawn
+    Win // game is won
+*/
 (async () => {
     try {
         const gameId = await BattleSquaresAPI.newGame(4);
@@ -95,7 +104,7 @@ const BattleSquaresAPI = {
         const actionResponse = await BattleSquaresAPI.performAction(gameId, connectResponse.playerId, connectResponse.secret, moveActions.up);
         console.log("Action performed:", actionResponse);
     } catch (error) {
-        console.error("Error in API calls:", error);
+        console.error("Error in API calls:", error.status);
     }
 })();
 
