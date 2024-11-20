@@ -3,6 +3,20 @@ const axios = require("axios").default;
 const baseURL = "https://battlesquares.internal-tools.vastvisibility.co.uk";
 const playerName= "5leiz";
 
+const moveActions = {
+    up: "u",
+    left: "l",
+    right: "r",
+    down: "d"
+}
+
+const fireActions = {
+    up: "U",
+    left: "L",
+    right: "R",
+    down: "D"
+}
+
 const BattleSquaresAPI = {
     newGame: async (numberOfPlayers) => {
         try {
@@ -56,7 +70,9 @@ const BattleSquaresAPI = {
 
     performAction: async (gameId, playerId, secret, action ) => {
         try {
-            const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/${secret}`);
+            const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`,{headers: {
+                secret: secret
+            }});
             return response.data;
         } catch (error) {
             console.error(`Error performing action "${action}" for player ${playerId} in game ${gameId}:`, error);
@@ -76,7 +92,7 @@ const BattleSquaresAPI = {
         const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
         console.log("Game info:", gameInfo);
 
-      const actionResponse = await BattleSquaresAPI.performAction(gameId, connectResponse.playerId, connectResponse.secret, "move");
+        const actionResponse = await BattleSquaresAPI.performAction(gameId, connectResponse.playerId, connectResponse.secret, moveActions.up);
         console.log("Action performed:", actionResponse);
     } catch (error) {
         console.error("Error in API calls:", error);
