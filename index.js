@@ -17,7 +17,7 @@ const fireActions = {
     down: "D"
 };
 
-const allowedGameStateForMovement = "InfoAndPlanning"; // Replace with the required game state
+const allowedGameStateForMovement = "InfoAndPlanning";
 
 const BattleSquaresAPI = {
     newGame: async (numberOfPlayers) => {
@@ -40,26 +40,6 @@ const BattleSquaresAPI = {
         }
     },
 
-    getInfo: async () => {
-        try {
-            const response = await axios.get(`${baseURL}/info`);
-            return response.data;
-        } catch (error) {
-            console.error("Error getting game info:", error);
-            throw error;
-        }
-    },
-
-    getAllInfo: async () => {
-        try {
-            const response = await axios.get(`${baseURL}/info/all`);
-            return response.data;
-        } catch (error) {
-            console.error("Error getting all game info:", error);
-            throw error;
-        }
-    },
-
     getGameInfo: async (gameId) => {
         try {
             const response = await axios.get(`${baseURL}/info/${gameId}`);
@@ -70,71 +50,116 @@ const BattleSquaresAPI = {
         }
     },
 
-    performActionsWhenAllowed: async (gameId, playerId, secret, actions) => {
+    performAction: async (gameId, playerId, secret, action) => {
         try {
-            for (const action of actions) {
-                let gameState;
-                do {
-                    // Fetch the current game state
-                    const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
-                    gameState = gameInfo.state;
-
-                    if (gameState !== allowedGameStateForMovement) {
-                        console.log(`Game state is "${gameState}". Waiting for "${allowedGameStateForMovement}"...`);
-                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before checking again
-                    }
-                } while (gameState !== allowedGameStateForMovement);
-
-                // Proceed with the action once the state is allowed
-                const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`, {
-                    headers: {
-                        secret: secret
-                    }
-                });
-                console.log(`Action "${action}" performed successfully.`);
-            }
-            console.log("All actions performed.");
+            const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`, {
+                headers: {
+                    secret: secret
+                }
+            });
+            return response.data;
         } catch (error) {
-            console.error(`Error performing actions for player ${playerId} in game ${gameId}:`, error.message);
+            console.error(`Error performing action "${action}" for player ${playerId} in game ${gameId}:`, error.message);
             throw error;
         }
     }
 };
 
-/* WaitingForPlayers, // game has just been created 
-    Ready, // all players are connected
-    Energise, // energy is being adjusted
-    InfoAndPlanning, // players get status and submit actions
-    Execution, // execute the actions
-    Status, // are players alive
-    Draw, // game is drawn
-    Win // game is won
-*/
+const strategy = {
+    decideAction: (gameInfo, playerId) => {
+        const player = gameInfo.players.find(p => p.id === playerId);
+        if (!player) {
+            throw new Error("Player not found in game info.");
+        }
+
+        // If energy is low, avoid firing and move to a safer position
+        if (player.energy <= 2) {
+            return strategy.safeMove(gameInfo, player);
+        }
+
+        // If energy is sufficient, decide whether to fire or move
+        const targets = strategy.getPotentialTargets(gameInfo, player);
+        if (targets.length > 0) {
+            // Fire in the direction of the most targets
+            return strategy.fireAtTargets(targets);
+        }
+
+        // If no firing opportunities, move to a better position
+        return strategy.safeMove(gameInfo, player);
+    },
+
+    getPotentialTargets: (gameInfo, player) => {
+        const targets = [];
+        const { x, y } = player.position;
+
+        // Check each direction for potential targets
+        ["up", "down", "left", "right"].forEach(direction => {
+            let dx = 0, dy = 0;
+            if (direction === "up") dy = -1;
+            if (direction === "down") dy = 1;
+            if (direction === "left") dx = -1;
+            if (direction === "right") dx = 1;
+
+            let nx = x + dx, ny = y + dy;
+            while (nx >= 0 && ny >= 0 && nx < gameInfo.gridSize && ny < gameInfo.gridSize) {
+                const target = gameInfo.players.find(p => p.position.x === nx && p.position.y === ny);
+                if (target) {
+                    targets.push({ direction, target });
+                }
+                nx += dx;
+                ny += dy;
+            }
+        });
+
+        return targets;
+    },
+
+    fireAtTargets: (targets) => {
+        const directions = targets.map(t => t.direction);
+        // Prioritize firing in the direction with the most targets
+        const direction = directions[0]; // Simple strategy, can be improved
+        return fireActions[direction];
+    },
+
+    safeMove: (gameInfo, player) => {
+        const moves = ["up", "down", "left", "right"];
+        const safeMoves = moves.filter(move => {
+            const { x, y } = player.position;
+            let nx = x, ny = y;
+
+            if (move === "up") ny -= 1;
+            if (move === "down") ny += 1;
+            if (move === "left") nx -= 1;
+            if (move === "right") nx += 1;
+
+            return nx >= 0 && ny >= 0 && nx < gameInfo.gridSize && ny < gameInfo.gridSize &&
+                !gameInfo.players.find(p => p.position.x === nx && p.position.y === ny);
+        });
+
+        if (safeMoves.length > 0) {
+            return moveActions[safeMoves[0]];
+        }
+
+        // If no safe moves, stay in place (void action is automatic)
+        return "void";
+    }
+};
+
 (async () => {
     try {
-        // Uncomment to create a new game
-        // const gameId = await BattleSquaresAPI.newGame(4);
-        // console.log("New game created:", gameId);
-
-        const gameId = 60; // Use an existing game ID
         const connectResponse = await BattleSquaresAPI.connect(gameId);
         console.log("Connected to game:", connectResponse);
 
-        const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
-        console.log("Game info:", gameInfo);
+        const { playerId, secret } = connectResponse;
 
-        const actions = [moveActions.up, moveActions.right, moveActions.down];
-        await BattleSquaresAPI.performActionsWhenAllowed(
-            gameId,
-            connectResponse.playerId,
-            connectResponse.secret,
-            actions
-        );
+        while (true) {
+            const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
+            const action = strategy.decideAction(gameInfo, playerId);
+            console.log(`Decided action: ${action}`);
+
+            await BattleSquaresAPI.performAction(gameId, playerId, secret, action);
+        }
     } catch (error) {
-        const connectResponse = await BattleSquaresAPI.connect(gameId);
-        console.log("Connected to game:", connectResponse);
-        console.error("Error in API calls:", error.message);
+        console.error("Error in game logic:", error.message);
     }
 })();
-
-module.exports = BattleSquaresAPI;
