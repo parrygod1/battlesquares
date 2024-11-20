@@ -1,7 +1,7 @@
 const axios = require("axios").default;
 
 const baseURL = "https://battlesquares.internal-tools.vastvisibility.co.uk";
-const playerName= "5leiz";
+const playerName = "5leiz";
 
 const moveActions = {
     up: "u",
@@ -16,6 +16,8 @@ const fireActions = {
     right: "R",
     down: "D"
 }
+
+const allowedGameStateForMovement = "InfoAndPlanning"; // Replace with the required game state
 
 const BattleSquaresAPI = {
     newGame: async (numberOfPlayers) => {
@@ -68,14 +70,29 @@ const BattleSquaresAPI = {
         }
     },
 
-    performAction: async (gameId, playerId, secret, action ) => {
+    performActionWhenAllowed: async (gameId, playerId, secret, action) => {
         try {
-            const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`,{headers: {
-                secret: secret
-            }});
+            let gameState;
+            do {
+                // Fetch the current game state
+                const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
+                gameState = gameInfo.state;
+
+                if (gameState !== allowedGameStateForMovement) {
+                    console.log(`Game state is "${gameState}". Waiting for "${allowedGameStateForMovement}"...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before checking again
+                }
+            } while (gameState !== allowedGameStateForMovement);
+
+            // Proceed with the action once the state is allowed
+            const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`, {
+                headers: {
+                    secret: secret
+                }
+            });
             return response.data;
         } catch (error) {
-            console.error(`Error performing action "${action}" for player ${playerId} in game ${gameId}:`, error);
+            console.error(`Error performing action "${action}" for player ${playerId} in game ${gameId}:`, error.message);
             throw error;
         }
     }
@@ -92,19 +109,31 @@ const BattleSquaresAPI = {
 */
 (async () => {
     try {
-        const gameId = await BattleSquaresAPI.newGame(4);
-        console.log("New game created:", gameId);
-
+       // const gameId = await BattleSquaresAPI.newGame(4);
+       // console.log("New game created:", gameId);
+       gameId = 20;
         const connectResponse = await BattleSquaresAPI.connect(gameId);
         console.log("Connected to game:", connectResponse);
 
         const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
         console.log("Game info:", gameInfo);
 
-        const actionResponse = await BattleSquaresAPI.performAction(gameId, connectResponse.playerId, connectResponse.secret, moveActions.up);
+        const actionResponse = await BattleSquaresAPI.performActionWhenAllowed(
+            gameId,
+            connectResponse.playerId,
+            connectResponse.secret,
+            moveActions.up
+        );
+
+        const dactionResponse = await BattleSquaresAPI.performActionWhenAllowed(
+            gameId,
+            connectResponse.playerId,
+            connectResponse.secret,
+            moveActions.down
+        );
         console.log("Action performed:", actionResponse);
     } catch (error) {
-        console.error("Error in API calls:", error.status);
+        console.error("Error in API calls:", error.message);
     }
 })();
 

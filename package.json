@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "test"
+    "test": "test",
+    "connect": "node connect.js"
   },
   "repository": {
     "type": "git",
