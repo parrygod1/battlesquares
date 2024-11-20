@@ -20,16 +20,6 @@ const fireActions = {
 const allowedGameStateForMovement = "InfoAndPlanning";
 
 const BattleSquaresAPI = {
-    newGame: async (numberOfPlayers) => {
-        try {
-            const response = await axios.get(`${baseURL}/new/${numberOfPlayers}`);
-            return response.data;
-        } catch (error) {
-            console.error("Error creating a new game:", error);
-            throw error;
-        }
-    },
-
     connect: async (gameId) => {
         try {
             const response = await axios.get(`${baseURL}/connect/${gameId}/${playerName}`);
@@ -74,25 +64,16 @@ const strategy = {
 
         const { x, y } = player.location;
 
-        // Check for opponents in the line of fire
-        for (const direction of ["up", "down", "left", "right"]) {
-            let dx = 0, dy = 0;
-            if (direction === "up") dy = -1;
-            if (direction === "down") dy = 1;
-            if (direction === "left") dx = -1;
-            if (direction === "right") dx = 1;
+        // Log player's coordinates
+        console.log(`Player coordinates: [${x}, ${y}]`);
 
-            let nx = x + dx, ny = y + dy;
-            while (nx >= 0 && ny >= 0 && nx < gameInfo.gridSize && ny < gameInfo.gridSize) {
-                const target = gameInfo.players.find(p => p.location.x === nx && p.location.y === ny);
-                if (target) {
-                    console.log(`Opponent found in line of fire: ${direction}`);
-                    return fireActions[direction];
-                }
-                nx += dx;
-                ny += dy;
-            }
-        }
+        // Log enemies' coordinates
+        console.log("Enemy coordinates:");
+        gameInfo.players
+            .filter(p => p.id !== playerId)
+            .forEach(enemy => {
+                console.log(`- Enemy ID ${enemy.id}: [${enemy.location.x}, ${enemy.location.y}]`);
+            });
 
         // If no opponents in the line of fire, move randomly
         const possibleActions = [...Object.values(moveActions), ...Object.values(fireActions)];
@@ -104,7 +85,13 @@ const strategy = {
 
 (async () => {
     try {
-        const gameId = 189; // Replace with your actual game ID
+        // Get the game ID from the command-line arguments
+        const args = process.argv.slice(2);
+        if (args.length === 0) {
+            throw new Error("No game ID provided. Usage: node index.js <gameId>");
+        }
+
+        const gameId = args[0];
 
         // Connect to the game
         const connectResponse = await BattleSquaresAPI.connect(gameId);
@@ -125,7 +112,7 @@ const strategy = {
 
             // Decide the action based on the current state
             const action = strategy.decideAction(gameInfo, playerId);
-            console.log(`Decided action: ${action}`);
+            console.log(`Decided action: ${action || "No action this turn"}`);
 
             // Perform the action
             await BattleSquaresAPI.performAction(gameId, playerId, secret, action);
@@ -134,5 +121,3 @@ const strategy = {
         console.error("Error in game logic:", error.message);
     }
 })();
-
-module.exports = BattleSquaresAPI;
