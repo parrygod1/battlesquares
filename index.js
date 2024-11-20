@@ -52,6 +52,10 @@ const BattleSquaresAPI = {
 
     performAction: async (gameId, playerId, secret, action) => {
         try {
+            if (!action) {
+                console.log("No action decided for this turn. Skipping...");
+                return;
+            }
             const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`, {
                 headers: {
                     secret: secret
@@ -72,7 +76,7 @@ const strategy = {
             throw new Error("Player not found in game info.");
         }
 
-        // If energy is low, avoid firing and move to a safer position
+        // If energy is low, avoid firing and move to a safer location
         if (player.energy <= 2) {
             return strategy.safeMove(gameInfo, player);
         }
@@ -84,13 +88,13 @@ const strategy = {
             return strategy.fireAtTargets(targets);
         }
 
-        // If no firing opportunities, move to a better position
+        // If no firing opportunities, move to a better location
         return strategy.safeMove(gameInfo, player);
     },
 
     getPotentialTargets: (gameInfo, player) => {
         const targets = [];
-        const { x, y } = player.position;
+        const { x, y } = player.location;
 
         // Check each direction for potential targets
         ["up", "down", "left", "right"].forEach(direction => {
@@ -102,7 +106,7 @@ const strategy = {
 
             let nx = x + dx, ny = y + dy;
             while (nx >= 0 && ny >= 0 && nx < gameInfo.gridSize && ny < gameInfo.gridSize) {
-                const target = gameInfo.players.find(p => p.position.x === nx && p.position.y === ny);
+                const target = gameInfo.players.find(p => p.location.x === nx && p.location.y === ny);
                 if (target) {
                     targets.push({ direction, target });
                 }
@@ -124,7 +128,7 @@ const strategy = {
     safeMove: (gameInfo, player) => {
         const moves = ["up", "down", "left", "right"];
         const safeMoves = moves.filter(move => {
-            const { x, y } = player.position;
+            const { x, y } = player.location;
             let nx = x, ny = y;
 
             if (move === "up") ny -= 1;
@@ -133,20 +137,22 @@ const strategy = {
             if (move === "right") nx += 1;
 
             return nx >= 0 && ny >= 0 && nx < gameInfo.gridSize && ny < gameInfo.gridSize &&
-                !gameInfo.players.find(p => p.position.x === nx && p.position.y === ny);
+                !gameInfo.players.find(p => p.location.x === nx && p.location.y === ny);
         });
 
         if (safeMoves.length > 0) {
             return moveActions[safeMoves[0]];
         }
 
-        // If no safe moves, stay in place (void action is automatic)
-        return "void";
+        // If no safe moves, take no action
+        return null;
     }
 };
 
 (async () => {
     try {
+        const gameId = 126;
+
         const connectResponse = await BattleSquaresAPI.connect(gameId);
         console.log("Connected to game:", connectResponse);
 
@@ -155,7 +161,7 @@ const strategy = {
         while (true) {
             const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
             const action = strategy.decideAction(gameInfo, playerId);
-            console.log(`Decided action: ${action}`);
+            console.log(`Decided action: ${action || "No action this turn"}`);
 
             await BattleSquaresAPI.performAction(gameId, playerId, secret, action);
         }
