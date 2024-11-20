@@ -8,14 +8,14 @@ const moveActions = {
     left: "l",
     right: "r",
     down: "d"
-}
+};
 
 const fireActions = {
     up: "U",
     left: "L",
     right: "R",
     down: "D"
-}
+};
 
 const allowedGameStateForMovement = "InfoAndPlanning"; // Replace with the required game state
 
@@ -70,29 +70,32 @@ const BattleSquaresAPI = {
         }
     },
 
-    performActionWhenAllowed: async (gameId, playerId, secret, action) => {
+    performActionsWhenAllowed: async (gameId, playerId, secret, actions) => {
         try {
-            let gameState;
-            do {
-                // Fetch the current game state
-                const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
-                gameState = gameInfo.state;
+            for (const action of actions) {
+                let gameState;
+                do {
+                    // Fetch the current game state
+                    const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
+                    gameState = gameInfo.state;
 
-                if (gameState !== allowedGameStateForMovement) {
-                    console.log(`Game state is "${gameState}". Waiting for "${allowedGameStateForMovement}"...`);
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before checking again
-                }
-            } while (gameState !== allowedGameStateForMovement);
+                    if (gameState !== allowedGameStateForMovement) {
+                        console.log(`Game state is "${gameState}". Waiting for "${allowedGameStateForMovement}"...`);
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before checking again
+                    }
+                } while (gameState !== allowedGameStateForMovement);
 
-            // Proceed with the action once the state is allowed
-            const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`, {
-                headers: {
-                    secret: secret
-                }
-            });
-            return response.data;
+                // Proceed with the action once the state is allowed
+                const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/`, {
+                    headers: {
+                        secret: secret
+                    }
+                });
+                console.log(`Action "${action}" performed successfully.`);
+            }
+            console.log("All actions performed.");
         } catch (error) {
-            console.error(`Error performing action "${action}" for player ${playerId} in game ${gameId}:`, error.message);
+            console.error(`Error performing actions for player ${playerId} in game ${gameId}:`, error.message);
             throw error;
         }
     }
@@ -109,30 +112,27 @@ const BattleSquaresAPI = {
 */
 (async () => {
     try {
-       // const gameId = await BattleSquaresAPI.newGame(4);
-       // console.log("New game created:", gameId);
-       gameId = 20;
+        // Uncomment to create a new game
+        // const gameId = await BattleSquaresAPI.newGame(4);
+        // console.log("New game created:", gameId);
+
+        const gameId = 60; // Use an existing game ID
         const connectResponse = await BattleSquaresAPI.connect(gameId);
         console.log("Connected to game:", connectResponse);
 
         const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
         console.log("Game info:", gameInfo);
 
-        const actionResponse = await BattleSquaresAPI.performActionWhenAllowed(
+        const actions = [moveActions.up, moveActions.right, moveActions.down];
+        await BattleSquaresAPI.performActionsWhenAllowed(
             gameId,
             connectResponse.playerId,
             connectResponse.secret,
-            moveActions.up
+            actions
         );
-
-        const dactionResponse = await BattleSquaresAPI.performActionWhenAllowed(
-            gameId,
-            connectResponse.playerId,
-            connectResponse.secret,
-            moveActions.down
-        );
-        console.log("Action performed:", actionResponse);
     } catch (error) {
+        const connectResponse = await BattleSquaresAPI.connect(gameId);
+        console.log("Connected to game:", connectResponse);
         console.error("Error in API calls:", error.message);
     }
 })();
