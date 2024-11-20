@@ -54,9 +54,9 @@ const BattleSquaresAPI = {
         }
     },
 
-    performAction: async (gameId, playerId, action) => {
+    performAction: async (gameId, playerId, secret, action ) => {
         try {
-            const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}`);
+            const response = await axios.get(`${baseURL}/action/${gameId}/${playerId}/${action}/${secret}`);
             return response.data;
         } catch (error) {
             console.error(`Error performing action "${action}" for player ${playerId} in game ${gameId}:`, error);
@@ -67,19 +67,17 @@ const BattleSquaresAPI = {
 
 (async () => {
     try {
-        const connectResponse = await BattleSquaresAPI.connect(76);
+        const gameId = await BattleSquaresAPI.newGame(4);
+        console.log("New game created:", gameId);
+
+        const connectResponse = await BattleSquaresAPI.connect(gameId);
         console.log("Connected to game:", connectResponse);
-        /*
-        const game = await BattleSquaresAPI.newGame(4);
-        console.log("New game created:", game);
 
-        
-
-        const gameInfo = await BattleSquaresAPI.getGameInfo(game.gameId);
+        const gameInfo = await BattleSquaresAPI.getGameInfo(gameId);
         console.log("Game info:", gameInfo);
 
-        const actionResponse = await BattleSquaresAPI.performAction(game.gameId, connectResponse.playerId, "move");
-        console.log("Action performed:", actionResponse);*/
+      const actionResponse = await BattleSquaresAPI.performAction(gameId, connectResponse.playerId, connectResponse.secret, "move");
+        console.log("Action performed:", actionResponse);
     } catch (error) {
         console.error("Error in API calls:", error);
     }
